@@ -1,0 +1,189 @@
+service: vfcoelho-${self:custom.repoName}
+
+plugins:
+  - serverless-python-requirements
+  - serverless-domain-manager
+  # - serverless-plugin-aws-alerts #TODO: add alarm integration with discord
+
+custom:
+  repoName: comms
+  resourcesName: ${self:service}-${self:provider.stage}
+  configFile: ${file(./.config/sls.${self:provider.environment.configStage}.yml)}
+  configStage: ${param:configStage, env:CONFIG_STAGE, self:provider.stage}
+  main:
+    domainName: ${self:custom.configFile.domain, env:CUSTOM_DOMAIN_NAME}
+    customDomainBasePath: ${self:custom.repoName}
+    # apiKeys:
+    #   - UNT:
+    #       - 
+    #         name: ${self:custom.resourcesName}-UNT-UNG-dummy
+    #         value: ${self:custom.configFile.UNTUNGDummyKey}
+    # usagePlan:
+    #   - UNT:
+    #       throttle:
+    #         burstLimit: 200
+    #         rateLimit: 100
+    #       quota:
+    #         limit: 5
+    #         offset: 2
+    #         period: DAY
+  
+
+  customDomain:
+    domainName: ${self:custom.${self:provider.environment.configStage}.domainName}
+    stage: ${self:provider.stage}
+    basePath: ${self:custom.${self:provider.environment.configStage}.customDomainBasePath}
+
+provider:
+  name: aws
+  runtime: python3.9
+  stage: ${opt:stage, env:STAGE, 'develop'}
+  region: ${opt:region, 'us-east-1'}
+  versionFunctions: false
+  # apiGateway:
+    # apiKeySourceType: HEADER
+    # apiKeys: ${self:custom.${self:custom.configStage}.apiKeys}
+      # - name: ${self:custom.resourcesName}-UNT-UNG-dummy
+      #   value: ${self:custom.configFile.UNTUNGDummyKey}
+    # usagePlan: ${self:custom.${self:custom.configStage}.usagePlan}
+    #   quota:
+    #     limit: 5
+    #     offset: 2
+    #     period: DAY
+    #   throttle:
+    #     burstLimit: 200
+    #     rateLimit: 100
+  logs:
+    restApi: 
+      level: INFO
+  # tracing:
+  #   apiGateway: true
+  #   lambda: true
+  environment:
+    stage: ${self:provider.stage}
+    configStage: ${self:custom.configStage}
+    region: ${self:provider.region}
+    repoName: ${self:custom.repoName}
+    service: ${self:service}
+    # configFile: ${self:custom.configFile}
+    domain: ${self:custom.configFile.domain}
+    main_discord_VI_secrets_vault_name: ${self:custom.configFile.main_discord_VI_secrets_vault_name}
+    main_manual_test_secrets_vault_name: ${self:custom.configFile.main_manual_test_secrets_vault_name}
+            
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - logs:CreateLogGroup
+        - logs:CreateLogStream
+        - logs:PutLogEvents
+        - ec2:CreateNetworkInterface
+        - ec2:DescribeNetworkInterfaces
+        - ec2:DeleteNetworkInterface
+        - xray:PutTraceSegments
+        - xray:PutTelemetryRecords
+        - xray:GetSamplingRules
+        - xray:GetSamplingTargets
+        - xray:GetSamplingStatisticSummaries
+      Resource: '*'
+    - Effect: Allow
+      Action:
+        - secretsmanager:GetSecretValue
+        - secretsmanager:DescribeSecret
+        - sqs:SendMessage
+        - sqs:ReceiveMessage
+      Resource: '*'
+
+# resources:
+#   - 
+#     Resources:
+
+#       IncomingHookQueueDeadLetter:
+#         Type: AWS::SQS::Queue
+#         Properties:
+#           QueueName: ${self:custom.resourcesName}-incoming-hook-dead-letter
+#           MessageRetentionPeriod: 1209600
+
+#       IncomingHookQueue:
+#         Type: AWS::SQS::Queue
+#         DependsOn: IncomingHookQueueDeadLetter
+#         Properties:
+#           QueueName: ${self:custom.resourcesName}-incoming-hook
+#           VisibilityTimeout: 300
+#           RedrivePolicy:
+#             deadLetterTargetArn: 
+#               Fn::GetAtt:
+#                 - IncomingHookQueueDeadLetter
+#                 - Arn
+#             maxReceiveCount: 4
+     
+#       CWAlarmSQSIncomingHookQueueDeadLetterSent:
+#         Type: AWS::CloudWatch::Alarm
+#         Properties:
+#           ActionsEnabled: true
+#           # AlarmActions:
+#           #   - ${self:custom.sns.alarmNotification}
+#           AlarmName: ${self:custom.resourcesName}-incoming-hook-dead-letter-sent
+#           ComparisonOperator: GreaterThanOrEqualToThreshold
+#           Dimensions:
+#             - Name: QueueName
+#               Value: ${self:custom.resourcesName}-incoming-hook-dead-letter
+#           EvaluationPeriods: 1
+#           MetricName: NumberOfMessagesSent
+#           Namespace: AWS/SQS
+#           Period: 60
+#           Statistic: Sum
+#           Threshold: 1
+#           TreatMissingData: notBreaching
+
+#       CWAlarmSQSIncomingHookQueueDeadLetterAge:
+#         Type: AWS::CloudWatch::Alarm
+#         Properties:
+#           ActionsEnabled: true
+#           # AlarmActions:
+#           #   - ${self:custom.sns.alarmNotification}
+#           AlarmName: ${self:custom.resourcesName}-incoming-hook-dead-letter-age
+#           ComparisonOperator: GreaterThanOrEqualToThreshold
+#           Dimensions:
+#             - Name: QueueName
+#               Value: ${self:custom.resourcesName}-incoming-hook-dead-letter
+#           EvaluationPeriods: 30
+#           MetricName: ApproximateAgeOfOldestMessage
+#           Namespace: AWS/SQS
+#           Period: 60
+#           Statistic: Maximum
+#           Threshold: 172800
+#           TreatMissingData: notBreaching
+      
+
+functions:
+
+  authorizer: #this authorizer should be part of a infrastructure project/service
+    handler: functions/events_handler.authorizer
+
+  incomingHook:
+    timeout: 30
+    handler: functions/events_handler.incoming_hook
+    # onError: # Add resiliency structures (maybe directly on CF?)
+    #   Ref: SNSIncomingHookQueueDeadLetter
+    events:
+      - http:
+          path: /{producer}/hook
+          method: post
+          private: true
+          authorizer:
+            name: authorizer
+            type: request
+  
+package:
+  excludeDevDependencies: true
+  exclude:
+    - .env/**
+    - tests/**
+    - deploy/**
+    - downloads/**
+    - operational_coding/**
+    - node_modules/**
+    - alembic_migrations/**
+    - docs/**
+
+

@@ -1,0 +1,8 @@
+{
+  "dependencies": {
+    "serverless": "^3.19.0",
+    "serverless-apigateway-service-proxy": "^2.1.0",
+    "serverless-domain-manager": "^6.0.3",
+    "serverless-python-requirements": "^5.4.0"
+  }
+}
