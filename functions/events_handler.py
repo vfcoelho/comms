@@ -11,7 +11,7 @@ import external.utils.commons as commons
 
 @Network()
 @ProviderAuth()
-def authorize(provider_authorizer, event, context): #this should be in an infrastructure repository
+def authorizer(provider_authorizer, event, context): #this should be in an infrastructure repository
     
     EFFECT = ActiveRecord(ALLOW='Allow',DENY='Deny')
     effect = EFFECT.DENY

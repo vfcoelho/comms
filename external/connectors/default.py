@@ -10,7 +10,7 @@ class AWSBaseAuthorizer():
         self.__configs = configs
 
     def authorize(self,event):
-
+        
         return self.build_response()
 
 

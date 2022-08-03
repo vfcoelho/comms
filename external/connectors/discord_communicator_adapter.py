@@ -7,15 +7,16 @@ import external.utils.commons as commons
 from nacl.signing import VerifyKey
 from nacl.exceptions import BadSignatureError
 
+# No module named 'nacl._sodium' >> serverless deploy in linux/wsl (same env as lambda)
+
 class DiscordAuthorizer(AWSBaseAuthorizer):
 
     def authorize(self, event):
         
-        body = json.loads(event.get('body','{}')) # doesn't look like this parse should be here
+        body = json.loads(event.get('body','{}')) # doesn't look like this parse should be here (?)
         resource=event.get('methodArn')
 
         principal = body.get('application_id')
-
 
         secrets = self.__secrets_adapter.get_secret(secret_path=self.__configs.get('secret',{}).get('path',self.__configs.tenant))
         verify_key = VerifyKey(bytes.fromhex(secrets.PUBLIC_KEY))
